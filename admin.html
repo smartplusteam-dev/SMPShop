@@ -2775,6 +2775,12 @@ async function saveProduct(){
   const urlInput = (qs('pm-img-url')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
   const allImgs = [...urlInput, ..._pmImages].slice(0,8);
 
+  // ✅ FIX: NocoDB 400 — อย่าส่ง empty string ให้ DateTime field
+  //          และ boolean ต้องเป็น true/false จริงๆ (ไม่ใช่ truthy/falsy)
+  const isFlash   = qs('pm-flash')?.checked === true;
+  const flashEnd  = qs('pm-flash-end')?.value || '';
+  const flashPrice= parseFloat(qs('pm-flash-price')?.value||0)||0;
+
   const data = {
     name,
     price,
@@ -2783,12 +2789,14 @@ async function saveProduct(){
     category:       (qs('pm-cat')?.value||'').trim(),
     description:    (qs('pm-desc')?.value||'').trim(),
     images:         JSON.stringify(allImgs),
-    is_flash_sale:  qs('pm-flash')?.checked||false,
-    is_new:         qs('pm-new')?.checked||false,
-    is_visible:     qs('pm-visible')?.checked!==false,
-    flash_end_at:   qs('pm-flash-end')?.value||'',
-    flash_price:    parseFloat(qs('pm-flash-price')?.value||0)||0,
+    is_flash_sale:  isFlash,
+    is_new:         qs('pm-new')?.checked === true,
+    is_visible:     qs('pm-visible')?.checked !== false,
   };
+
+  // ✅ ใส่ flash fields เฉพาะเมื่อ Flash Sale ติ๊กไว้ และมีค่าจริง
+  if(isFlash && flashEnd)   data.flash_end_at  = flashEnd;
+  if(isFlash && flashPrice) data.flash_price   = flashPrice;
 
   const editId = qs('pm-edit-id')?.value;
   try{
@@ -2796,7 +2804,10 @@ async function saveProduct(){
     else{ await API.create(ADMIN.tbl.products, data); toast('เพิ่มสินค้าใหม่แล้ว ✅','success'); }
     closeProductModal();
     loadAdminProducts();
-  }catch(e){ toast('บันทึกไม่สำเร็จ: '+e.message,'error'); }
+  }catch(e){
+    console.error('saveProduct error:', e);
+    toast('บันทึกไม่สำเร็จ: '+e.message,'error');
+  }
 }
 
 async function deleteProduct(id, name){
