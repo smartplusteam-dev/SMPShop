@@ -348,6 +348,59 @@ td{padding:11px 14px;vertical-align:middle;color:var(--text)}
       <div id="cp-err" class="hidden"
         style="margin-top:10px;font-size:12px;color:var(--error);text-align:center;padding:8px;background:rgba(248,113,113,.08);border-radius:8px"></div>
     </div>
+
+    <!-- ══ หน้าสมัคร Admin ══ -->
+    <div id="view-register" class="hidden">
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:8px">
+        ➕ สมัคร Admin ใหม่
+      </div>
+      <div style="font-size:11px;color:var(--text-s);margin-bottom:18px;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:8px;padding:8px 10px">
+        ⚠️ ต้องมี ADMIN_TBL_ID ที่ถูกต้องก่อน — Admin แรกสร้างได้โดยไม่ต้องยืนยัน, Admin ถัดไปต้องยืนยันรหัสผ่าน Admin เดิม
+      </div>
+      <div class="form-group">
+        <label class="form-label">ชื่อแสดง</label>
+        <input type="text" id="reg-name" class="form-input" placeholder="Admin Name">
+      </div>
+      <div class="form-group">
+        <label class="form-label">อีเมล *</label>
+        <input type="email" id="reg-email" class="form-input" placeholder="admin@smartplus.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">รหัสผ่าน * (อย่างน้อย 8 ตัว)</label>
+        <div style="position:relative">
+          <input type="password" id="reg-pass" class="form-input" placeholder="••••••••" style="padding-right:44px">
+          <button onclick="togglePwd('reg-pass','eye-reg')" type="button"
+            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-s);cursor:pointer;padding:4px">
+            <i data-lucide="eye" id="eye-reg" style="width:16px;height:16px"></i>
+          </button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ยืนยันรหัสผ่าน *</label>
+        <input type="password" id="reg-pass2" class="form-input" placeholder="••••••••"
+          onkeyup="if(event.key==='Enter')registerAdmin()">
+      </div>
+      <div id="reg-existing-wrap" style="display:none">
+        <div style="font-size:11px;color:var(--text-s);margin-bottom:8px;padding:8px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px">
+          🔒 มี Admin อยู่แล้ว — กรุณายืนยันด้วยรหัสผ่าน Admin ที่มีอยู่
+        </div>
+        <div class="form-group">
+          <label class="form-label">อีเมล Admin เดิม</label>
+          <input type="email" id="reg-auth-email" class="form-input" placeholder="admin@smartplus.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">รหัสผ่าน Admin เดิม</label>
+          <input type="password" id="reg-auth-pass" class="form-input" placeholder="••••••••">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-gold" style="flex:2" id="reg-btn" onclick="registerAdmin()">✅ สมัคร Admin</button>
+        <button class="btn btn-outline" style="flex:1" onclick="showView('login')">ยกเลิก</button>
+      </div>
+      <div id="reg-err" class="hidden"
+        style="margin-top:10px;font-size:12px;color:var(--error);text-align:center;padding:8px;background:rgba(248,113,113,.08);border-radius:8px"></div>
+    </div>
+
   </div>
 </div>
 
@@ -968,7 +1021,7 @@ const DEFAULT_ADMIN_HASH = '98e43f0f8a68e50efd81812a221420252ae4a33dad3acc5faf36
  * ให้สร้างตาราง "admins" ใน NocoDB มี field: username, password_hash, is_active
  * แล้วใส่ Table ID ที่นี่
  */
-const ADMIN_TBL_ID = 'mg9xs1eqbr9774w'; // ใส่ Table ID ของตาราง admins ถ้ามี เช่น 'mxxxxxxxxxxxx'
+const ADMIN_TBL_ID = 'mg9xs1eqbr9774w'; // ✅ admins table
 
 let ADMIN = { url: WORKER_URL, base: BASE_ID, tbl: { submissions: SUB_TBL, members: MEM_TBL, chat_rooms: CHAT_ROOMS_TBL, room_members: ROOM_MEMBERS_TBL, messages: MESSAGES_TBL, friends: FRIENDS_TBL, products: 'm8m7d679k2ikm42', orders: 'mnttt7omnhufvuq', reviews: 'mj312w3y7lbs25n' } };
 let ADMIN_SESSION = false;
@@ -1026,11 +1079,14 @@ async function sha256(str){
 }
 
 function showView(v){
-  ['view-login','view-change-pw'].forEach(id=>{
+  ['view-login','view-change-pw','view-register'].forEach(id=>{
     const el=qs(id); if(el) el.classList.toggle('hidden', id!=='view-'+v);
   });
   qs('login-err')?.classList.add('hidden');
   qs('cp-err')?.classList.add('hidden');
+  qs('reg-err')?.classList.add('hidden');
+  // Check if existing admins when opening register
+  if(v==='register') checkExistingAdmins();
   icons();
 }
 
@@ -3111,6 +3167,78 @@ function exportOrders(){
   } else {
     const csv=[Object.keys(data[0]).join(','),...data.map(r=>Object.values(r).map(v=>`"${v||''}"`).join(','))].join('\n');
     const a=document.createElement('a');a.href='data:text/csv,'+encodeURIComponent(csv);a.download='orders.csv';a.click();
+  }
+}
+
+
+/* ════════════════════════════════════════
+   ADMIN REGISTRATION
+════════════════════════════════════════ */
+
+async function checkExistingAdmins(){
+  if(!ADMIN_TBL_ID){ return; }
+  try{
+    const d = await API.list(ADMIN_TBL_ID,{limit:1});
+    const hasAdmins = (d.list||[]).length > 0;
+    const wrap = qs('reg-existing-wrap');
+    if(wrap) wrap.style.display = hasAdmins ? '' : 'none';
+  }catch{}
+}
+
+function showRegErr(msg){ const el=qs('reg-err'); if(el){ el.textContent=msg; el.classList.remove('hidden'); } }
+
+async function registerAdmin(){
+  if(!ADMIN_TBL_ID){ showRegErr('กรุณาตั้งค่า ADMIN_TBL_ID ในโค้ดก่อน'); return; }
+  const name   = (qs('reg-name')?.value||'').trim();
+  const email  = (qs('reg-email')?.value||'').trim().toLowerCase();
+  const pass   = qs('reg-pass')?.value||'';
+  const pass2  = qs('reg-pass2')?.value||'';
+  if(!email)    { showRegErr('กรุณากรอกอีเมล'); return; }
+  if(pass.length < 8){ showRegErr('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร'); return; }
+  if(pass !== pass2)  { showRegErr('รหัสผ่านไม่ตรงกัน'); return; }
+
+  const btn = qs('reg-btn'); if(btn){ btn.disabled=true; btn.textContent='กำลังสมัคร...'; }
+
+  try{
+    // ตรวจว่ามี admin อยู่แล้วไหม
+    const existing = await API.list(ADMIN_TBL_ID,{limit:1});
+    const hasAdmins = (existing.list||[]).length > 0;
+
+    if(hasAdmins){
+      // ต้องยืนยันด้วย admin เดิมก่อน
+      const authEmail = (qs('reg-auth-email')?.value||'').trim().toLowerCase();
+      const authPass  = qs('reg-auth-pass')?.value||'';
+      if(!authEmail||!authPass){ showRegErr('กรุณากรอกข้อมูล Admin เดิมเพื่อยืนยัน'); if(btn){btn.disabled=false;btn.textContent='✅ สมัคร Admin';} return; }
+      const authHash  = await sha256(authPass);
+      const authRes   = await API.list(ADMIN_TBL_ID,{limit:1,where:`(email,eq,${authEmail})~and(is_active,eq,true)`});
+      const authRec   = (authRes.list||[])[0];
+      if(!authRec || authRec.password_hash !== authHash){ showRegErr('ข้อมูล Admin เดิมไม่ถูกต้อง'); if(btn){btn.disabled=false;btn.textContent='✅ สมัคร Admin';} return; }
+    }
+
+    // ตรวจ email ซ้ำ
+    const dupCheck = await API.list(ADMIN_TBL_ID,{limit:1,where:`(email,eq,${email})`});
+    if((dupCheck.list||[]).length > 0){ showRegErr('อีเมลนี้มี Admin อยู่แล้ว'); if(btn){btn.disabled=false;btn.textContent='✅ สมัคร Admin';} return; }
+
+    const newHash = await sha256(pass);
+    await API.create(ADMIN_TBL_ID,{
+      email,
+      password_hash:  newHash,
+      display_name:   name || email.split('@')[0],
+      is_active:      true,
+      working_hours:  '',
+      last_login:     ''
+    });
+
+    toast('สมัคร Admin สำเร็จ! 🎉 ลงชื่อเข้าใช้ได้เลย','success');
+    // Clear fields
+    ['reg-name','reg-email','reg-pass','reg-pass2','reg-auth-email','reg-auth-pass'].forEach(id=>{ const el=qs(id); if(el) el.value=''; });
+    showView('login');
+    // Pre-fill email
+    const emailEl = qs('l-email'); if(emailEl) emailEl.value = email;
+  }catch(e){
+    showRegErr('สมัครไม่สำเร็จ: '+e.message);
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='✅ สมัคร Admin'; }
   }
 }
 
